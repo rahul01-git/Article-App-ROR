@@ -1,0 +1,198 @@
+### starting a new rails app with postgres database
+# Note that this will expect a postgres user with the same username
+# as your app, you may need to edit config/database.yml to match the
+# user you created earlier
+
+- > rails new myapp -d postgresql
+
+#folder structure:
+File/Folder	Purpose
+app/	-> Contains the controllers, models, views, helpers, mailers, channels, jobs, and assets for your application. You'll focus on this folder for the remainder of this guide.
+bin/	-> Contains the rails script that starts your app and can contain other scripts you use to set up, update, deploy, or run your application.
+config/	-> Contains configuration for your application's routes, database, and more. This is covered in more detail in Configuring Rails Applications.
+config.ru	-> Rack configuration for Rack-based servers used to start the application. For more information about Rack, see the Rack website.
+db/	-> Contains your current database schema, as well as the database migrations.
+Dockerfile	-> Configuration file for Docker.
+Gemfile
+Gemfile.lock	-> These files allow you to specify what gem dependencies are needed for your Rails application. These files are used by the Bundler gem. For more information about Bundler, see the Bundler website.
+lib/ ->	Extended modules for your application.
+log/ ->	Application log files.
+public/ ->	Contains static files and compiled assets. When your app is running, this directory will be exposed as-is.
+Rakefile ->	This file locates and loads tasks that can be run from the command line. The task definitions are defined throughout the components of Rails. Rather than changing Rakefile, you should add your own tasks by adding files to the lib/tasks directory of your application.
+README.md ->	This is a brief instruction manual for your application. You should edit this file to tell others what your application does, how to set it up, and so on.
+storage/ ->	Active Storage files for Disk Service. This is covered in Active Storage Overview.
+test/ ->	Unit tests, fixtures, and other test apparatus. These are covered in Testing Rails Applications.
+tmp/ ->	Temporary files (like cache and pid files).
+vendor/ ->	A place for all third-party code. In a typical Rails application this includes vendored gems.
+.dockerignore	-> This file tells Docker which files it should not copy into the container.
+.gitattributes	-> This file defines metadata for specific paths in a git repository. This metadata can be used by git and other tools to enhance their behavior. See the gitattributes documentation for more information.
+.gitignore	-> This file tells git which files (or patterns) it should ignore. See GitHub - Ignoring files for more information about ignoring files.
+.ruby-version	-> This file contains the default Ruby version.
+
+
+### Starting up rails server 
+-> bin/rails server or 
+-> rails server 
+
+### Adding a new route 
+-> goto config/routes.rb and add this line for-eg:   
+    -> get "/articles", to: "articles#index"
+    -> The route above declares that GET /articles requests are mapped to the index action of ArticlesController.
+
+### on router instead of defining each route for crud we can do
+-> resources :articles
+    -> This will create all CRUD related routes for '/articles'
+    -> that can be checked by
+        -> bin/rails routes
+
+### generate routes for associated model
+-> here we have comments associated with articles so to define routes for it we have to modify routes.rb file as:
+    -> resources :articles do
+            resources :comments
+        end
+-> This creates comments as a nested resource within articles. This is another part of capturing the hierarchical relationship that exists between articles and comments.
+
+
+### To create ArticlesController and its index action, we'll run the controller generator (with the --skip-routes option because we already have an appropriate route):
+-> bin/rails generate controller Articles index --skip-routes
+    -> and in ArticlesController we can see
+        def index
+        end
+            -> when an action doesn't explicitly renders a view the one that mathces name of action is rendered (in this case: app/views/articles/index.html.erb file)
+    -> there write <h1>Hello, Rails!</h1> and start our server and visit route "localhost:3000/articles" to view that content
+    -> to define this route as root route we have to define this at top of our routes file before any other routes:
+        -> root "article#index"
+
+#### Later on we'll generate Comment controller as:
+-> bin/rails generate model Comments
+
+### Autoloading
+- Rails applications do not use require to load application code.
+- You only need require calls for two use cases:
+    To load files under the lib directory.
+    To load gem dependencies that have require: false in the Gemfile.
+
+### Generate a model (migration file is also generated)
+-> bin/rails generate model Article title:string body:text
+
+### Generating a model with reference with another model
+-> bin/rails generate model Comments commenter:string body:text article:references
+    (This will generate a 'Comment' model with foreign key reference to 'Article' model)
+    -> so in Comments model we'll have
+        -> belongs_to :article
+    -> and in Article model we have to add
+        -> has_many :comments 
+    -> for 1-many realtion between Article and Comments
+
+### run migration
+-> bin/rails db:migrate
+
+### to undo migration
+-> bin/rails db:rollback
+-> bin/rails db:rollback step=1
+
+### interaction with models
+-> get all data: Article.all
+-> get by id: Article.find(params[:id])
+-> create new Article: 
+    -> @article =  Article.new(title: "", body: "")
+    -> @article.save
+-> update article:
+    -> @article = Article.find(params[:id])
+    -> @article.update(newTitle, newBody)
+-> delete article:
+    -> @article = Article.find(params[:id])
+    -> @article.destroy
+
+### for associated models 
+-> create data:
+    -> @article = Article.find(params[:article_id])
+       @comment = @article.comments.create(commenter: "", body:"")
+-> delete data:
+    ->  <%= link_to "Destroy Comment", [comment.article, comment], data: {
+                  turbo_method: :delete,
+                  turbo_confirm: "Are you sure?"
+                } %>
+    -> @article = Article.find(params[:article_id])
+        @comment = @article.comments.find(params[:id])
+        @comment.destroy
+
+### auto Deleting Associated Objects on delete of parent Objects
+    -> modify association as
+        ->   has_many :comments, dependent: :destroy
+
+
+### link_to ?
+-> The link_to helper reanders a link with it's first arg as link's text and second as link's destination
+    -> eg: <%= link_to article.title, article %>
+        -> <a href="/article/id">Article Title </a>
+
+### link_to 
+    -> for edit link:
+        ->   <li><%= link_to "Edit", edit_article_path(@article) %></li>
+    -> for delete link:
+        ->   <li><%= link_to "Destroy", article_path(@article), 
+                    data: {
+                        turbo_method: :delete,
+                        turbo_confirm: "Are you sure?"
+                    } %></li>
+
+
+### to render partials (same form being used for create and update)
+-> create file as _form.html.erb
+-> paste form code
+-> render as:
+    -> <%= render "form", article: @article %> "file inside same folder" 
+    -> <%= render @article.comments %> "list all comments", filename: "comments/_comment.html.erb"
+    -> <%= render 'comments/form' %> " generate create comment form", filename: "comments/_form.html.erb"
+
+### using concerns
+    -> Concerns are a way to make large controllers or models easier to understand and manage. This also has the advantage of reusability when multiple models (or controllers) share the same concerns.
+    -> You can use concerns in your controller or model the same way you would use any module.
+        -> location:
+            -> app/controllers/concerns
+            -> app/models/concerns
+
+    ## to demonstrate use of concern let's add status column on both model that share almost same code
+        -> generate migration for adding new column on both table
+        -> inside model/concern create a new file as visible.rb and paste
+            -> module Visible
+                extend ActiveSupport::Concern
+
+                VALID_STATUSES = [ "public", "private", "archived" ]
+
+                included do
+                    validates :status, inclusion: { in: VALID_STATUSES }
+                end
+
+                class_methods do
+                    def public_count
+                    where(status: "public").count
+                    end
+                end
+
+                def archived?
+                    status == "archived"
+                end
+                end
+
+            -> what this does is allows status to one of predefined string and another class is used to find the total no of blogs or comments as per required
+
+        -> to add it inside model
+        -> place 'include Visible'  before association relation on both model
+
+### Basic authentication
+If you were to publish your blog online, anyone would be able to add, edit and delete articles or delete comments.
+
+Rails provides an HTTP authentication system that will work nicely in this situation.
+
+In the ArticlesController we need to have a way to block access to the various actions if the person is not authenticated. Here we can use the Rails http_basic_authenticate_with method, which allows access to the requested action if that method allows it.
+
+To use the authentication system, we specify it at the top of our ArticlesController in app/controllers/articles_controller.rb. In our case, we want the user to be authenticated on every action except index and show, so we write that:
+-> inside Article controller place:
+    ->   http_basic_authenticate_with name: "dhh", password: "secret", except: [:index, :show]
+
+
+We also want to allow only authenticated users to delete comments, 
+
+    ->   http_basic_authenticate_with name: "dhh", password: "secret", only: :destroy
